@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بزار — لوحة الإدارة</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:   #0b0b14; --bg2: #111120; --bg3: #18182a;
+  --card: #151528; --card2:#1c1c32;
+  --bd:   #242444; --bd2: #303058;
+  --t:    #eae8ff; --t2:  #9898c0; --t3:  #52527a;
+  --gold: #f5c518; --gold2:#c8a010; --gd3: rgba(245,197,24,.13);
+  --teal: #00c9a7; --tl2: #009e84;  --td3: rgba(0,201,167,.13);
+  --red:  #ff4f60; --rd3: rgba(255,79,96,.13);
+  --blue: #4a8fe8; --bld3:rgba(74,143,232,.13);
+  --purple:#a78bfa; --pd3:rgba(167,139,250,.13);
+  --sh: 0 8px 32px rgba(0,0,0,.5);
+  --r:14px; --r2:10px; --r3:8px;
+  --f:'Cairo',sans-serif;
+  --sidebar:240px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--f);background:var(--bg);color:var(--t);min-height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+a{color:var(--teal);text-decoration:none}
+.hidden{display:none!important}
+
+/* ── Animations ── */
+@keyframes spin   {to{transform:rotate(360deg)}}
+@keyframes fadeUp {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes pulse  {0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Loader ── */
+#gl{position:fixed;inset:0;background:rgba(11,11,20,.9);backdrop-filter:blur(6px);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.ring{width:44px;height:44px;border:3px solid var(--bd);border-top-color:var(--gold);border-radius:50%;animation:spin .65s linear infinite}
+#gl-msg{font-size:13px;color:var(--t2)}
+
+/* ── Toasts ── */
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9998;display:flex;flex-direction:column;gap:7px;align-items:center;pointer-events:none}
+.toast{padding:10px 22px;border-radius:var(--r2);font-size:13px;font-weight:700;box-shadow:var(--sh);animation:fadeUp .3s;max-width:90vw;text-align:center;background:var(--card2);border:1px solid var(--bd);color:var(--t);transition:opacity .3s}
+.toast.ok{border-color:var(--teal);color:var(--teal)}
+.toast.bad{border-color:var(--red);color:var(--red)}
+.toast.warn{border-color:var(--gold);color:var(--gold)}
+
+/* ── Login Screen ── */
+#login-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:32px;max-width:380px;width:100%;animation:fadeUp .4s;position:relative;overflow:hidden}
+.login-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--teal));animation:shimmer 2s infinite;background-size:200%}
+.login-logo{text-align:center;margin-bottom:20px}
+.login-logo .lmark{width:56px;height:56px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#0b0b14;margin:0 auto 10px}
+.login-logo h1{font-size:20px;font-weight:900;background:linear-gradient(135deg,var(--gold),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.login-logo p{font-size:12px;color:var(--t3);margin-top:3px;-webkit-text-fill-color:var(--t3)}
+
+/* ── Layout ── */
+#app{display:flex;flex:1;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{width:var(--sidebar);background:var(--bg2);border-left:1px solid var(--bd);display:flex;flex-direction:column;position:fixed;top:0;right:0;height:100vh;z-index:100;transition:.3s}
+.sb-logo{padding:18px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px}
+.sb-lmark{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#0b0b14;flex-shrink:0}
+.sb-title{font-size:15px;font-weight:900;color:var(--gold)}
+.sb-sub{font-size:9px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase}
+.sb-nav{flex:1;padding:10px 8px;overflow-y:auto}
+.sb-section{font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;padding:10px 10px 5px;margin-top:6px}
+.sb-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r3);border:none;background:none;color:var(--t2);cursor:pointer;font-size:13px;font-family:var(--f);font-weight:600;width:100%;text-align:right;transition:.2s;margin-bottom:2px;position:relative}
+.sb-btn:hover{background:var(--card);color:var(--t)}
+.sb-btn.on{background:var(--gd3);color:var(--gold)}
+.sb-btn .sb-ic{font-size:17px;flex-shrink:0}
+.sb-btn .sb-bdg{margin-right:auto;min-width:18px;height:18px;background:var(--red);border-radius:9px;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-footer{padding:12px 10px;border-top:1px solid var(--bd)}
+.sb-user{display:flex;align-items:center;gap:8px;padding:10px;background:var(--card);border-radius:var(--r2);margin-bottom:8px}
+.sb-uav{width:34px;height:34px;background:var(--gd3);border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.sb-uname{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-uemail{font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Main Content ── */
+.main{margin-right:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:18px;font-weight:900}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.content{padding:24px;flex:1}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:var(--r2);border:none;cursor:pointer;font-weight:700;font-size:13px;font-family:var(--f);transition:.2s;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.bg{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0b0b14}
+.bg:hover:not(:disabled){filter:brightness(1.1)}
+.bt{background:linear-gradient(135deg,var(--teal),var(--tl2));color:#fff}
+.bgh{background:var(--card2);color:var(--t);border:1px solid var(--bd)}
+.bgh:hover:not(:disabled){border-color:var(--gold);background:var(--gd3)}
+.br{background:var(--rd3);color:var(--red);border:1px solid var(--red)}
+.bp{background:var(--pd3);color:var(--purple);border:1px solid var(--purple)}
+.fw{width:100%}
+.sm{padding:7px 13px;font-size:12px;border-radius:var(--r3)}
+.xs{padding:5px 10px;font-size:11px;border-radius:6px}
+
+/* ── Forms ── */
+.fi{margin-bottom:14px}
+.fi label{display:block;font-size:11px;font-weight:700;color:var(--t2);margin-bottom:5px;letter-spacing:.06em;text-transform:uppercase}
+.inp{width:100%;background:var(--bg3);border:1.5px solid var(--bd);border-radius:var(--r2);padding:10px 14px;color:var(--t);font-size:13px;font-family:var(--f);outline:none;transition:.2s}
+.inp:focus{border-color:var(--gold)}
+.inp::placeholder{color:var(--t3)}
+select.inp{cursor:pointer}
+textarea.inp{resize:vertical;min-height:80px}
+
+/* ── Stats Grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden;animation:fadeUp .4s both}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat-card.gold::before{background:var(--gold)}
+.stat-card.teal::before{background:var(--teal)}
+.stat-card.red::before{background:var(--red)}
+.stat-card.blue::before{background:var(--blue)}
+.stat-card.purple::before{background:var(--purple)}
+.stat-ico{font-size:28px;margin-bottom:10px;display:block}
+.stat-num{font-size:30px;font-weight:900;line-height:1}
+.stat-card.gold .stat-num{color:var(--gold)}
+.stat-card.teal .stat-num{color:var(--teal)}
+.stat-card.red  .stat-num{color:var(--red)}
+.stat-card.blue .stat-num{color:var(--blue)}
+.stat-card.purple .stat-num{color:var(--purple)}
+.stat-lbl{font-size:12px;color:var(--t2);margin-top:4px;font-weight:600}
+
+/* ── Section Title ── */
+.sec-title{font-size:15px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec-title span{font-size:11px;color:var(--t3);font-weight:600}
+
+/* ── Table / Rows ── */
+.tbl{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.tbl-head{padding:12px 16px;border-bottom:1px solid var(--bd);display:grid;gap:10px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.tbl-row{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px;transition:.2s;animation:fadeUp .3s both}
+.tbl-row:last-child{border:none}
+.tbl-row:hover{background:var(--card2)}
+.row-img{width:46px;height:46px;border-radius:var(--r3);object-fit:cover;background:var(--bg3);flex-shrink:0;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:18px}
+.row-info{flex:1;min-width:0}
+.row-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-meta{font-size:11px;color:var(--t2);margin-top:3px}
+.row-acts{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+
+/* ── Status Badge ── */
+.sb2{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700}
+.sa{background:var(--td3);color:var(--teal)}
+.sp{background:var(--gd3);color:var(--gold)}
+.sr{background:var(--rd3);color:var(--red)}
+.sb2.blue{background:var(--bld3);color:var(--blue)}
+
+/* ── User Avatar ── */
+.u-av{width:38px;height:38px;border-radius:50%;background:var(--gd3);border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.u-av.vrf{border-color:var(--teal);background:var(--td3)}
+.u-av.bnd{border-color:var(--red);background:var(--rd3)}
+
+/* ── Report Card ── */
+.rpt-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r2);padding:14px;margin-bottom:10px;animation:fadeUp .3s both}
+.rpt-card.open{border-right:3px solid var(--red)}
+.rpt-card.resolved{border-right:3px solid var(--teal);opacity:.7}
+.rpt-reason{font-size:14px;font-weight:700;margin-bottom:6px}
+.rpt-meta{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rpt-acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+
+/* ── Settings ── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.setting-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px}
+.setting-title{font-size:13px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd)}
+.toggle-row:last-child{border:none}
+.toggle-label{font-size:13px;font-weight:600}
+.toggle-desc{font-size:11px;color:var(--t3);margin-top:2px}
+.toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--bd2);border-radius:12px;cursor:pointer;transition:.3s}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked + .toggle-slider{background:var(--teal)}
+.toggle input:checked + .toggle-slider::before{transform:translateX(20px)}
+
+/* ── Log ── */
+.log-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.log-row:last-child{border:none}
+.log-ic{width:28px;height:28px;border-radius:var(--r3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.log-ic.login{background:var(--td3)}
+.log-ic.logout{background:var(--bld3)}
+.log-ic.ban{background:var(--rd3)}
+.log-ic.verify{background:var(--gd3)}
+.log-ic.approve{background:var(--td3)}
+.log-ic.reject{background:var(--rd3)}
+.log-info{flex:1}
+.log-txt{font-weight:600;color:var(--t)}
+.log-detail{color:var(--t3);margin-top:2px}
+.log-time{font-size:10px;color:var(--t3);flex-shrink:0}
+
+/* ── Chips ── */
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{padding:7px 15px;border-radius:20px;border:1.5px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--f);font-weight:700;transition:.2s;user-select:none}
+.chip:hover{border-color:var(--gold);color:var(--gold)}
+.chip.on{background:var(--gd3);border-color:var(--gold);color:var(--gold)}
+
+/* ── Empty ── */
+.empty{text-align:center;padding:50px 20px;color:var(--t2)}
+.ei{font-size:48px;margin-bottom:12px;opacity:.5}
+.et{font-size:15px;font-weight:700;margin-bottom:5px}
+.es{font-size:12px;color:var(--t3)}
+
+/* ── Skeleton ── */
+.sk{background:linear-gradient(90deg,var(--bg3) 25%,var(--card2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:var(--r3)}
+
+/* ── Charts (simple bars) ── */
+.chart-wrap{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:20px}
+.chart-title{font-size:13px;font-weight:800;margin-bottom:16px;color:var(--t2)}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-label{font-size:11px;color:var(--t2);width:80px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.22,1,.36,1)}
+.bar-fill.gold{background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.bar-fill.teal{background:linear-gradient(90deg,var(--tl2),var(--teal))}
+.bar-fill.red{background:linear-gradient(90deg,#c0303d,var(--red))}
+.bar-fill.blue{background:linear-gradient(90deg,#1d4ed8,var(--blue))}
+.bar-val{font-size:11px;font-weight:700;color:var(--t2);width:36px;text-align:left;flex-shrink:0}
+
+/* ── Modal ── */
+.mod-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(5px);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}
+.mod{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sh);animation:fadeUp .3s}
+.mod-head{padding:16px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);z-index:10}
+.mod-head h2{font-size:15px;font-weight:800}
+.mod-body{padding:18px 20px 24px}
+.xb{width:32px;height:32px;border-radius:var(--r3);border:1px solid var(--bd);background:var(--card);color:var(--t);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:.2s}
+.xb:hover{background:var(--rd3);border-color:var(--red);color:var(--red)}
+
+/* ── Confirm Dialog ── */
+.confirm-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px}
+.confirm-box{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:24px;max-width:360px;width:100%;text-align:center;animation:fadeUp .3s}
+.confirm-ic{font-size:42px;margin-bottom:12px}
+.confirm-title{font-size:16px;font-weight:800;margin-bottom:8px}
+.confirm-msg{font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.7}
+.confirm-acts{display:flex;gap:10px;justify-content:center}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  :root{--sidebar:0px}
+  .sidebar{transform:translateX(100%);width:260px}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-right:0}
+  .settings-grid{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .mob-menu-btn{display:flex!important}
+  .sb-overlay{display:block!important}
+}
+.mob-menu-btn{display:none;width:36px;height:36px;border-radius:var(--r3);border:1px solid var(--bd);background:var(--card);color:var(--t);cursor:pointer;font-size:16px;align-items:center;justify-content:center}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99}
+</style>
+</head>
+<body>
+
+<div id="toasts"></div>
+<div id="gl" class="hidden"><div class="ring"></div><span id="gl-msg">جاري التحميل...</span></div>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="lmark">ب</div>
+      <h1>بـزار — الإدارة</h1>
+      <p>للمشرفين فقط</p>
+    </div>
+    <div class="fi"><label>البريد الإلكتروني</label><input class="inp" type="email" id="l-em" placeholder="admin@example.com" autocomplete="email"></div>
+    <div class="fi"><label>كلمة المرور</label><input class="inp" type="password" id="l-pw" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn bg fw" onclick="doLogin()" id="l-btn">🔑 دخول</button>
+    <div id="l-err" style="color:var(--red);font-size:12px;text-align:center;margin-top:10px;min-height:18px"></div>
+  </div>
+</div>
+
+<!-- Sidebar Overlay -->
+<div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
+
+<!-- App -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-lmark">ب</div>
+      <div><div class="sb-title">بـزار</div><div class="sb-sub">لوحة الإدارة</div></div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">الرئيسية</div>
+      <button class="sb-btn on" onclick="goTab('overview')"   id="sb-overview"> <span class="sb-ic">📊</span> نظرة عامة</button>
+      <button class="sb-btn"    onclick="goTab('activity')"   id="sb-activity">  <span class="sb-ic">⚡</span> النشاط الأخير</button>
+
+      <div class="sb-section">المحتوى</div>
+      <button class="sb-btn"    onclick="goTab('pending')"    id="sb-pending">   <span class="sb-ic">⏳</span> قيد المراجعة <span class="sb-bdg hidden" id="pending-bdg">0</span></button>
+      <button class="sb-btn"    onclick="goTab('products')"   id="sb-products">  <span class="sb-ic">📦</span> كل المنتجات</button>
+
+      <div class="sb-section">المجتمع</div>
+      <button class="sb-btn"    onclick="goTab('users')"      id="sb-users">     <span class="sb-ic">👥</span> المستخدمون</button>
+      <button class="sb-btn"    onclick="goTab('reports')"    id="sb-reports">   <span class="sb-ic">🚩</span> البلاغات <span class="sb-bdg hidden" id="reports-bdg">0</span></button>
+      <button class="sb-btn"    onclick="goTab('messages')"   id="sb-messages">  <span class="sb-ic">💬</span> الرسائل</button>
+
+      <div class="sb-section">النظام</div>
+      <button class="sb-btn"    onclick="goTab('logs')"       id="sb-logs">      <span class="sb-ic">🔒</span> سجل الأمان</button>
+      <button class="sb-btn"    onclick="goTab('settings')"   id="sb-settings">  <span class="sb-ic">⚙️</span> الإعدادات</button>
+
+      <div class="sb-section">أخرى</div>
+      <a href="index.html" class="sb-btn"><span class="sb-ic">🏠</span> العودة للموقع</a>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-user">
+        <div class="sb-uav">👤</div>
+        <div style="min-width:0">
+          <div class="sb-uname" id="sb-uname">—</div>
+          <div class="sb-uemail" id="sb-uemail">—</div>
+        </div>
+      </div>
+      <button class="btn bgh fw sm" onclick="doLogout()">🚪 خروج</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="mob-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title" id="topbar-title">📊 نظرة عامة</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn bgh sm" onclick="refreshTab()">🔄 تحديث</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+
+</div>
+
+<!-- Modals -->
+<div id="modals"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ════ CONFIG ════ */
+var SURL = 'https://qgkzpzbhgbvjhijhzixf.supabase.co';
+var SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFna3pwemJoZ2J2amhpamh6aXhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NTA0MDAsImV4cCI6MjA4ODEyNjQwMH0.1odTHz0kt9LqfEE8xyjMpALozh5JFM-EUpLaFnn0S-4';
+var ADMIN_EMAILS = ['ytcoupra@gmail.com'];
+
+var sb = window.supabase.createClient(SURL, SKEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+/* ════ STATE ════ */
+var ME = null, PROF = null;
+var curTab = 'overview';
+
+/* ════ UTILS ════ */
+var $ = s => document.querySelector(s);
+var esc = t => { var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
+function timeAgo(d){
+  if(!d) return '';
+  var s = Math.floor((Date.now()-new Date(d))/1000);
+  if(s<60) return 'الآن';
+  if(s<3600) return Math.floor(s/60)+' دقيقة';
+  if(s<86400) return Math.floor(s/3600)+' ساعة';
+  return new Date(d).toLocaleDateString('ar-DZ');
+}
+function fmtDate(d){ return d ? new Date(d).toLocaleDateString('ar-DZ',{year:'numeric',month:'short',day:'numeric'}) : '—'; }
+function loader(m){ $('#gl').classList.remove('hidden'); $('#gl-msg').textContent=m||'جاري التحميل...'; }
+function unloader(){ $('#gl').classList.add('hidden'); }
+function toast(m,t){
+  var c=$('#toasts'), el=document.createElement('div');
+  el.className='toast '+(t||''); el.textContent=m; c.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 3200);
+}
+function san(s,n){ return (s||'').trim().replace(/<[^>]*>/g,'').slice(0,n||500); }
+
+function confirm2(ico, title, msg, btnTxt, btnCls, onConfirm){
+  $('#modals').innerHTML = `<div class="confirm-bg">
+    <div class="confirm-box">
+      <div class="confirm-ic">${ico}</div>
+      <div class="confirm-title">${esc(title)}</div>
+      <div class="confirm-msg">${esc(msg)}</div>
+      <div class="confirm-acts">
+        <button class="btn bgh" onclick="closeModal()">إلغاء</button>
+        <button class="btn ${btnCls}" onclick="confirmAction()">${esc(btnTxt)}</button>
+      </div>
+    </div>
+  </div>`;
+  window._confirmCb = onConfirm;
+}
+window.confirmAction = () => { closeModal(); if(window._confirmCb) window._confirmCb(); };
+window.closeModal = () => { $('#modals').innerHTML=''; };
+
+/* ════ AUTH ════ */
+async function init(){
+  var {data:{session}} = await sb.auth.getSession();
+  if(session){
+    ME = session.user;
+    if(!ADMIN_EMAILS.includes(ME.email)){
+      await sb.auth.signOut();
+      $('#l-err').textContent = 'غير مصرح لك بالدخول';
+      return;
+    }
+    var r = await sb.from('profiles').select('*').eq('id',ME.id).maybeSingle();
+    if(r.data) PROF = r.data;
+    showApp();
+  }
+}
+
+window.doLogin = async () => {
+  var btn=$('#l-btn'); btn.disabled=true; btn.textContent='...';
+  $('#l-err').textContent='';
+  var email=$('#l-em').value.trim();
+  var pass=$('#l-pw').value;
+  if(!email||!pass){ $('#l-err').textContent='أدخل البريد وكلمة المرور'; btn.disabled=false; btn.textContent='🔑 دخول'; return; }
+  if(!ADMIN_EMAILS.includes(email.toLowerCase())){ $('#l-err').textContent='هذا الحساب ليس له صلاحية الإدارة'; btn.disabled=false; btn.textContent='🔑 دخول'; return; }
+  loader('جاري الدخول...');
+  var r = await sb.auth.signInWithPassword({ email, password:pass });
+  unloader();
+  if(r.error){ $('#l-err').textContent='بريد أو كلمة مرور خاطئة'; btn.disabled=false; btn.textContent='🔑 دخول'; return; }
+  ME = r.data.user;
+  var pr = await sb.from('profiles').select('*').eq('id',ME.id).maybeSingle();
+  if(pr.data) PROF = pr.data;
+  showApp();
+};
+
+window.doLogout = async () => {
+  loader('...');
+  await sb.auth.signOut();
+  ME=null; PROF=null;
+  unloader();
+  location.reload();
+};
+
+function showApp(){
+  $('#login-screen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  // set user info in sidebar
+  $('#sb-uname').textContent = PROF?.full_name || ME.email.split('@')[0];
+  $('#sb-uemail').textContent = ME.email;
+  goTab('overview');
+  loadBadges();
+  setupRT();
+}
+
+/* ════ NAVIGATION ════ */
+var tabTitles = {
+  overview:'📊 نظرة عامة', activity:'⚡ النشاط الأخير',
+  pending:'⏳ قيد المراجعة', products:'📦 كل المنتجات',
+  users:'👥 المستخدمون', reports:'🚩 البلاغات',
+  messages:'💬 الرسائل', logs:'🔒 سجل الأمان', settings:'⚙️ الإعدادات'
+};
+window.goTab = tab => {
+  curTab = tab;
+  document.querySelectorAll('.sb-btn').forEach(b => b.classList.remove('on'));
+  var btn = $(`#sb-${tab}`); if(btn) btn.classList.add('on');
+  $('#topbar-title').textContent = tabTitles[tab]||tab;
+  loadTab(tab);
+  // close sidebar on mobile
+  if(window.innerWidth<=768) closeSidebar();
+};
+window.refreshTab = () => loadTab(curTab);
+
+function loadTab(tab){
+  var c = $('#content');
+  c.innerHTML = skeletonLoader();
+  if(tab==='overview')  tabOverview(c);
+  if(tab==='activity')  tabActivity(c);
+  if(tab==='pending')   tabPending(c);
+  if(tab==='products')  tabProducts(c);
+  if(tab==='users')     tabUsers(c);
+  if(tab==='reports')   tabReports(c);
+  if(tab==='messages')  tabMessages(c);
+  if(tab==='logs')      tabLogs(c);
+  if(tab==='settings')  tabSettings(c);
+}
+
+function skeletonLoader(){
+  return `<div class="stats-grid">${Array(4).fill(`<div class="stat-card"><div class="sk" style="height:28px;width:60px;margin-bottom:8px"></div><div class="sk" style="height:14px;width:80px"></div></div>`).join('')}</div>
+  <div class="sk" style="height:200px;border-radius:var(--r)"></div>`;
+}
+
+window.toggleSidebar = () => { $('#sidebar').classList.toggle('open'); $('#sb-overlay').style.display='block'; };
+function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sb-overlay').style.display='none'; }
+
+/* ════ BADGES ════ */
+async function loadBadges(){
+  var [pr, rr] = await Promise.all([
+    sb.from('products').select('id',{count:'exact',head:true}).eq('status','pending'),
+    sb.from('reports').select('id',{count:'exact',head:true}).eq('status','open')
+  ]);
+  var pb = $('#pending-bdg'), rb = $('#reports-bdg');
+  if(pb){ pb.textContent=pr.count||0; pb.classList.toggle('hidden',!pr.count); }
+  if(rb){ rb.textContent=rr.count||0; rb.classList.toggle('hidden',!rr.count); }
+}
+
+/* ════ TAB: OVERVIEW ════ */
+async function tabOverview(c){
+  var [pc, uc, rc, pn, mc] = await Promise.all([
+    sb.from('products').select('id,view_count,status,created_at'),
+    sb.from('profiles').select('id,is_verified,account_status,created_at'),
+    sb.from('reports').select('id,status'),
+    sb.from('products').select('id',{count:'exact',head:true}).eq('status','pending'),
+    sb.from('messages').select('id',{count:'exact',head:true})
+  ]);
+  var prods = pc.data||[], users = uc.data||[], rpts = rc.data||[];
+  var totalViews = prods.reduce((a,p)=>a+(p.view_count||0),0);
+  var approvedCnt = prods.filter(p=>p.status==='approved').length;
+  var verifiedCnt = users.filter(u=>u.is_verified).length;
+  var openRpts = rpts.filter(r=>r.status==='open').length;
+
+  // last 7 days products
+  var now = Date.now();
+  var days = Array.from({length:7},(_,i)=>{
+    var d = new Date(now - (6-i)*86400000);
+    return { label: d.toLocaleDateString('ar-DZ',{weekday:'short'}), date: d.toISOString().slice(0,10) };
+  });
+  var dayCounts = days.map(d=>({...d, count:prods.filter(p=>p.created_at?.slice(0,10)===d.date).length}));
+  var maxDay = Math.max(...dayCounts.map(d=>d.count),1);
+
+  // categories distribution
+  var catMap = {};
+  prods.forEach(p=>{ if(p.status==='approved') catMap[p.category]=(catMap[p.category]||0)+1; });
+  var topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  var maxCat = topCats[0]?.[1]||1;
+
+  c.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card gold" style="animation-delay:.0s"><span class="stat-ico">📦</span><div class="stat-num">${prods.length}</div><div class="stat-lbl">إجمالي المنتجات</div></div>
+      <div class="stat-card teal" style="animation-delay:.05s"><span class="stat-ico">👥</span><div class="stat-num">${users.length}</div><div class="stat-lbl">المستخدمون</div></div>
+      <div class="stat-card blue" style="animation-delay:.1s"><span class="stat-ico">👁</span><div class="stat-num">${totalViews}</div><div class="stat-lbl">إجمالي المشاهدات</div></div>
+      <div class="stat-card red" style="animation-delay:.15s"><span class="stat-ico">🚩</span><div class="stat-num">${openRpts}</div><div class="stat-lbl">بلاغات مفتوحة</div></div>
+      <div class="stat-card gold" style="animation-delay:.2s"><span class="stat-ico">✅</span><div class="stat-num">${approvedCnt}</div><div class="stat-lbl">منتجات منشورة</div></div>
+      <div class="stat-card teal" style="animation-delay:.25s"><span class="stat-ico">🔒</span><div class="stat-num">${verifiedCnt}</div><div class="stat-lbl">حسابات موثّقة</div></div>
+      <div class="stat-card purple" style="animation-delay:.3s"><span class="stat-ico">⏳</span><div class="stat-num">${pn.count||0}</div><div class="stat-lbl">قيد المراجعة</div></div>
+      <div class="stat-card blue" style="animation-delay:.35s"><span class="stat-ico">💬</span><div class="stat-num">${mc.count||0}</div><div class="stat-lbl">إجمالي الرسائل</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="chart-wrap">
+        <div class="chart-title">📅 المنتجات — آخر 7 أيام</div>
+        ${dayCounts.map(d=>`
+          <div class="bar-row">
+            <div class="bar-label">${esc(d.label)}</div>
+            <div class="bar-track"><div class="bar-fill gold" style="width:${Math.round(d.count/maxDay*100)}%"></div></div>
+            <div class="bar-val">${d.count}</div>
+          </div>`).join('')}
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">🏷️ أشهر الفئات</div>
+        ${topCats.length ? topCats.map((cat,i)=>`
+          <div class="bar-row">
+            <div class="bar-label">${esc(cat[0])}</div>
+            <div class="bar-track"><div class="bar-fill ${['gold','teal','blue','red','purple'][i%5]}" style="width:${Math.round(cat[1]/maxCat*100)}%"></div></div>
+            <div class="bar-val">${cat[1]}</div>
+          </div>`).join('') : '<div class="empty" style="padding:20px"><div class="es">لا توجد بيانات</div></div>'}
+      </div>
+    </div>`;
+}
+
+/* ════ TAB: ACTIVITY ════ */
+async function tabActivity(c){
+  var [pr, ur, rr] = await Promise.all([
+    sb.from('products').select('id,name,status,created_at,profiles!products_user_id_fkey(full_name)').order('created_at',{ascending:false}).limit(10),
+    sb.from('profiles').select('id,full_name,email,created_at,is_verified').order('created_at',{ascending:false}).limit(10),
+    sb.from('reports').select('*').order('created_at',{ascending:false}).limit(10)
+  ]);
+  c.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div class="sec-title">📦 آخر المنتجات</div>
+        <div class="tbl">
+          ${(pr.data||[]).map(p=>`
+            <div class="tbl-row">
+              <div class="row-info">
+                <div class="row-name">${esc(p.name)}</div>
+                <div class="row-meta">${esc(p.profiles?.full_name||'مجهول')} · ${timeAgo(p.created_at)}</div>
+              </div>
+              <span class="sb2 ${p.status==='approved'?'sa':p.status==='rejected'?'sr':'sp'}">${p.status==='approved'?'✅ مقبول':p.status==='rejected'?'❌ مرفوض':'⏳ مراجعة'}</span>
+            </div>`).join('') || '<div class="empty" style="padding:20px"><div class="es">لا توجد بيانات</div></div>'}
+        </div>
+      </div>
+      <div>
+        <div class="sec-title">👥 آخر المستخدمين</div>
+        <div class="tbl">
+          ${(ur.data||[]).map(u=>`
+            <div class="tbl-row">
+              <div class="u-av${u.is_verified?' vrf':''}">👤</div>
+              <div class="row-info">
+                <div class="row-name">${esc(u.full_name)}</div>
+                <div class="row-meta">${esc(u.email)} · ${timeAgo(u.created_at)}</div>
+              </div>
+              ${u.is_verified?'<span class="sb2 sa">✓ موثّق</span>':'<span class="sb2 sp">⏳</span>'}
+            </div>`).join('') || '<div class="empty" style="padding:20px"><div class="es">لا توجد بيانات</div></div>'}
+        </div>
+        <div class="sec-title" style="margin-top:16px">🚩 آخر البلاغات</div>
+        <div class="tbl">
+          ${(rr.data||[]).map(r=>`
+            <div class="tbl-row">
+              <div class="row-info">
+                <div class="row-name">${esc(r.reason)}</div>
+                <div class="row-meta">${esc(r.reporter_name||'مجهول')} · ${timeAgo(r.created_at)}</div>
+              </div>
+              <span class="sb2 ${r.status==='open'?'sp':r.status==='resolved'?'sa':'sr'}">${r.status==='open'?'مفتوح':'حُلّ'}</span>
+            </div>`).join('') || '<div class="empty" style="padding:20px"><div class="es">لا توجد بيانات</div></div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ════ TAB: PENDING ════ */
+async function tabPending(c){
+  var r = await sb.from('products')
+    .select('id,name,category,format,price_da,price_usd,description,created_at,user_id,profiles!products_user_id_fkey(full_name,email,country)')
+    .eq('status','pending').order('created_at');
+  var prods = r.data||[];
+  var imgMap = {};
+  if(prods.length){
+    var ir = await sb.from('product_images').select('product_id,image_url').in('product_id',prods.map(p=>p.id)).order('display_order');
+    if(ir.data) ir.data.forEach(i=>{ if(!imgMap[i.product_id]) imgMap[i.product_id]=i.image_url; });
+  }
+  if(!prods.length){ c.innerHTML='<div class="empty"><div class="ei">✅</div><div class="et">لا توجد منتجات قيد المراجعة</div></div>'; return; }
+  c.innerHTML=`<div class="sec-title">${prods.length} منتج قيد المراجعة <span>مرتّبة من الأقدم للأحدث</span></div>
+  <div class="tbl">
+    ${prods.map((p,i)=>`
+      <div class="tbl-row" style="animation-delay:${i*.04}s">
+        ${imgMap[p.id]?`<img class="row-img" src="${esc(imgMap[p.id])}">`:'<div class="row-img">📷</div>'}
+        <div class="row-info">
+          <div class="row-name">${esc(p.name)}</div>
+          <div class="row-meta">
+            👤 ${esc(p.profiles?.full_name||'مجهول')} · ${esc(p.category)} · ${esc(p.format)}
+            ${p.price_da?'· '+p.price_da+' DA':''}${p.price_usd?'· $'+p.price_usd:''}
+          </div>
+          <div class="row-meta">📧 ${esc(p.profiles?.email||'')} · 🕐 ${timeAgo(p.created_at)}</div>
+          ${p.description?`<div class="row-meta" style="color:var(--t3)">📝 ${esc(p.description.slice(0,80))}${p.description.length>80?'...':''}</div>`:''}
+        </div>
+        <div class="row-acts">
+          <button class="btn bt xs" onclick="approve('${p.id}','${esc(p.user_id)}','${esc(p.name)}')">✅ قبول</button>
+          <button class="btn br xs" onclick="promptReject('${p.id}','${esc(p.user_id)}','${esc(p.name)}')">❌ رفض</button>
+          <button class="btn bgh xs" onclick="previewProd('${p.id}')">👁 معاينة</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+  loadBadges();
+}
+
+/* ════ TAB: ALL PRODUCTS ════ */
+var prodFilter = 'all', prodSearch = '';
+async function tabProducts(c){
+  c.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <input class="inp" type="text" placeholder="🔍 بحث..." style="flex:1;min-width:180px;padding:8px 14px" id="prod-srch" value="${esc(prodSearch)}" oninput="prodSearch=this.value;filterProds()">
+      <select class="inp" style="width:140px;padding:8px" id="prod-flt" onchange="prodFilter=this.value;filterProds()">
+        <option value="all">كل الحالات</option>
+        <option value="approved">✅ مقبول</option>
+        <option value="pending">⏳ مراجعة</option>
+        <option value="rejected">❌ مرفوض</option>
+      </select>
+    </div>
+    <div id="prods-tbl"><div class="sk" style="height:300px;border-radius:var(--r)"></div></div>`;
+  document.getElementById('prod-flt').value = prodFilter;
+  await filterProds();
+}
+window.filterProds = async () => {
+  prodSearch = $('#prod-srch')?.value||prodSearch;
+  var c = $('#prods-tbl'); if(!c) return;
+  c.innerHTML='<div class="sk" style="height:200px;border-radius:var(--r)"></div>';
+  var q = sb.from('products')
+    .select('id,name,category,format,price_da,status,created_at,view_count,profiles!products_user_id_fkey(full_name)')
+    .order('created_at',{ascending:false}).limit(50);
+  if(prodFilter!=='all') q=q.eq('status',prodFilter);
+  if(prodSearch) q=q.ilike('name','%'+prodSearch+'%');
+  var r=await q; var prods=r.data||[];
+  var imgMap={};
+  if(prods.length){
+    var ir=await sb.from('product_images').select('product_id,image_url').in('product_id',prods.map(p=>p.id)).order('display_order');
+    if(ir.data)ir.data.forEach(i=>{if(!imgMap[i.product_id])imgMap[i.product_id]=i.image_url;});
+  }
+  if(!prods.length){c.innerHTML='<div class="empty"><div class="ei">📭</div><div class="et">لا توجد نتائج</div></div>';return;}
+  c.innerHTML=`<div class="tbl">${prods.map((p,i)=>`
+    <div class="tbl-row" style="animation-delay:${i*.03}s">
+      ${imgMap[p.id]?`<img class="row-img" src="${esc(imgMap[p.id])}">`:'<div class="row-img">📷</div>'}
+      <div class="row-info">
+        <div class="row-name">${esc(p.name)}</div>
+        <div class="row-meta">${esc(p.profiles?.full_name||'مجهول')} · ${esc(p.category)} · ${esc(p.format)}${p.price_da?' · '+p.price_da+' DA':''}</div>
+        <div class="row-meta">👁 ${p.view_count||0} · ${fmtDate(p.created_at)}</div>
+      </div>
+      <div class="row-acts">
+        <span class="sb2 ${p.status==='approved'?'sa':p.status==='rejected'?'sr':'sp'}">${p.status==='approved'?'✅':p.status==='rejected'?'❌':'⏳'}</span>
+        ${p.status==='pending'?`<button class="btn bt xs" onclick="approve('${p.id}','','${esc(p.name)}')">✅</button>`:''}
+        <button class="btn br xs" onclick="deleteProd('${p.id}','${esc(p.name)}')">🗑</button>
+      </div>
+    </div>`).join('')}</div>`;
+};
+
+/* ════ TAB: USERS ════ */
+var userSearch='', userFilter='all';
+async function tabUsers(c){
+  c.innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <input class="inp" type="text" placeholder="🔍 بحث بالاسم أو البريد..." style="flex:1;min-width:200px;padding:8px 14px" id="usr-srch" oninput="userSearch=this.value;filterUsers()">
+      <select class="inp" style="width:150px;padding:8px" id="usr-flt" onchange="userFilter=this.value;filterUsers()">
+        <option value="all">كل المستخدمين</option>
+        <option value="verified">✅ موثّقون</option>
+        <option value="unverified">⏳ غير موثّقين</option>
+        <option value="banned">🚫 محظورون</option>
+      </select>
+    </div>
+    <div id="users-tbl"><div class="sk" style="height:300px;border-radius:var(--r)"></div></div>`;
+  await filterUsers();
+}
+window.filterUsers = async () => {
+  userSearch = $('#usr-srch')?.value||userSearch;
+  var c=$('#users-tbl'); if(!c) return;
+  c.innerHTML='<div class="sk" style="height:200px;border-radius:var(--r)"></div>';
+  var q=sb.from('profiles').select('*').order('created_at',{ascending:false}).limit(100);
+  if(userFilter==='verified')   q=q.eq('is_verified',true).neq('account_status','banned');
+  if(userFilter==='unverified') q=q.eq('is_verified',false).neq('account_status','banned');
+  if(userFilter==='banned')     q=q.eq('account_status','banned');
+  if(userSearch) q=q.or(`full_name.ilike.%${userSearch}%,email.ilike.%${userSearch}%`);
+  var r=await q; var users=r.data||[];
+  if(!users.length){c.innerHTML='<div class="empty"><div class="ei">👥</div><div class="et">لا توجد نتائج</div></div>';return;}
+  c.innerHTML=`<div class="tbl">${users.map((u,i)=>`
+    <div class="tbl-row" style="animation-delay:${i*.03}s">
+      <div class="u-av${u.is_verified?' vrf':u.account_status==='banned'?' bnd':''}">${u.account_status==='banned'?'🚫':'👤'}</div>
+      <div class="row-info">
+        <div class="row-name">${esc(u.full_name)}</div>
+        <div class="row-meta">📧 ${esc(u.email)} · 🌍 ${esc(u.country||'—')}</div>
+        <div class="row-meta">
+          <span class="sb2 ${u.is_verified?'sa':'sp'}">${u.is_verified?'✓ موثّق':'⏳ لم يتحقق'}</span>
+          ${u.account_status==='banned'?`<span class="sb2 sr">🚫 محظور</span>`:''}
+          <span style="color:var(--t3)">· ${fmtDate(u.created_at)}</span>
+        </div>
+        ${u.ban_reason?`<div class="row-meta" style="color:var(--red)">سبب الحظر: ${esc(u.ban_reason)}</div>`:''}
+      </div>
+      <div class="row-acts">
+        ${!u.is_verified&&u.account_status!=='banned'?`<button class="btn bt xs" onclick="verifyUser('${u.id}','${esc(u.full_name)}')">✅ توثيق</button>`:''}
+        ${u.account_status==='banned'
+          ?`<button class="btn bgh xs" onclick="unbanUser('${u.id}','${esc(u.full_name)}')">🔓 رفع الحظر</button>`
+          :`<button class="btn br xs" onclick="banUser('${u.id}','${esc(u.full_name)}')">🚫 حظر</button>`}
+        <button class="btn bp xs" onclick="userDetails('${u.id}')">👁 تفاصيل</button>
+      </div>
+    </div>`).join('')}</div>`;
+};
+
+/* ════ TAB: REPORTS ════ */
+async function tabReports(c){
+  var r=await sb.from('reports').select('*').order('created_at',{ascending:false}).limit(60);
+  var rpts=r.data||[];
+  if(!rpts.length){c.innerHTML='<div class="empty"><div class="ei">✅</div><div class="et">لا توجد بلاغات</div></div>';return;}
+  var open=rpts.filter(r=>r.status==='open'), done=rpts.filter(r=>r.status!=='open');
+  c.innerHTML=`
+    <div class="sec-title">${open.length} بلاغ مفتوح · ${done.length} محلول</div>
+    ${open.map((rp,i)=>`
+      <div class="rpt-card open" style="animation-delay:${i*.04}s">
+        <div class="rpt-reason">${esc(rp.reason)}</div>
+        <div class="rpt-meta">
+          <span>🚩 ${esc(rp.reporter_name||'مجهول')}</span>
+          <span>🕐 ${timeAgo(rp.created_at)}</span>
+          ${rp.product_id?`<span>📦 منتج مُبلَّغ عنه</span>`:''}
+        </div>
+        <div class="rpt-acts">
+          ${rp.product_id?`<button class="btn bgh xs" onclick="previewProd('${rp.product_id}')">👁 عرض المنتج</button>`:''}
+          <button class="btn bt xs" onclick="resolveReport('${rp.id}')">✓ تم الحل</button>
+          ${rp.product_id?`<button class="btn br xs" onclick="deleteReportedProd('${rp.id}','${rp.product_id}')">🗑 حذف المنتج</button>`:''}
+        </div>
+      </div>`).join('')}
+    ${done.length?`<div class="sec-title" style="margin-top:20px">البلاغات المحلولة</div>
+    ${done.slice(0,5).map(rp=>`
+      <div class="rpt-card resolved">
+        <div class="rpt-reason">${esc(rp.reason)}</div>
+        <div class="rpt-meta">
+          <span>🚩 ${esc(rp.reporter_name||'مجهول')}</span>
+          <span>✅ محلول · ${timeAgo(rp.created_at)}</span>
+        </div>
+      </div>`).join('')}`:''}`;
+  loadBadges();
+}
+
+/* ════ TAB: MESSAGES ════ */
+async function tabMessages(c){
+  var r=await sb.from('conversations').select('*').order('last_msg_at',{ascending:false}).limit(30);
+  var convs=r.data||[];
+  if(!convs.length){c.innerHTML='<div class="empty"><div class="ei">💬</div><div class="et">لا توجد محادثات</div></div>';return;}
+  var mc=await sb.from('messages').select('id',{count:'exact',head:true});
+  c.innerHTML=`
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card blue"><span class="stat-ico">💬</span><div class="stat-num">${mc.count||0}</div><div class="stat-lbl">إجمالي الرسائل</div></div>
+      <div class="stat-card teal"><span class="stat-ico">🗨️</span><div class="stat-num">${convs.length}</div><div class="stat-lbl">المحادثات</div></div>
+    </div>
+    <div class="sec-title">آخر المحادثات</div>
+    <div class="tbl">
+    ${convs.map((cv,i)=>`
+      <div class="tbl-row" style="animation-delay:${i*.03}s">
+        <div class="u-av">💬</div>
+        <div class="row-info">
+          <div class="row-name">${esc(cv.user1_name||'—')} ↔ ${esc(cv.user2_name||'—')}</div>
+          ${cv.product_name?`<div class="row-meta">📦 ${esc(cv.product_name)}</div>`:''}
+          <div class="row-meta">${esc(cv.last_msg||'...')} · ${timeAgo(cv.last_msg_at)}</div>
+        </div>
+        <button class="btn bgh xs" onclick="viewConv('${cv.id}')">👁 عرض</button>
+      </div>`).join('')}
+    </div>`;
+}
+
+/* ════ TAB: LOGS ════ */
+async function tabLogs(c){
+  var r=await sb.from('security_logs').select('*').order('created_at',{ascending:false}).limit(60);
+  var logs=r.data||[];
+  if(!logs.length){c.innerHTML='<div class="empty"><div class="ei">🔒</div><div class="et">لا توجد سجلات</div></div>';return;}
+  var typeConf={
+    login:    {ic:'🔑',cls:'login',   lbl:'تسجيل دخول'},
+    logout:   {ic:'🚪',cls:'logout',  lbl:'تسجيل خروج'},
+    ban:      {ic:'🚫',cls:'ban',     lbl:'حظر مستخدم'},
+    verify:   {ic:'✅',cls:'verify',  lbl:'توثيق حساب'},
+    approve:  {ic:'📦',cls:'approve', lbl:'قبول منتج'},
+    reject:   {ic:'❌',cls:'reject',  lbl:'رفض منتج'},
+  };
+  c.innerHTML=`
+    <div class="sec-title">${logs.length} حدث مسجّل</div>
+    <div class="tbl">
+      ${logs.map((l,i)=>{
+        var cfg=typeConf[l.event_type]||{ic:'📋',cls:'login',lbl:l.event_type||'حدث'};
+        return`<div class="tbl-row" style="animation-delay:${i*.02}s">
+          <div class="log-ic ${cfg.cls}">${cfg.ic}</div>
+          <div class="log-info">
+            <div class="log-txt">${cfg.lbl} — ${esc(l.user_email||'مجهول')}</div>
+            ${l.details?`<div class="log-detail">${esc(l.details)}</div>`:''}
+          </div>
+          <div class="log-time">${timeAgo(l.created_at)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+/* ════ TAB: SETTINGS ════ */
+async function tabSettings(c){
+  var r=await sb.from('site_settings').select('*');
+  var s={}; if(r.data) r.data.forEach(x=>s[x.key]=x.value);
+  var isMaint=s.maintenance_mode==='true';
+  c.innerHTML=`
+    <div class="settings-grid">
+      <div class="setting-card">
+        <div class="setting-title">🌐 إعدادات الموقع</div>
+        <div class="toggle-row">
+          <div><div class="toggle-label">وضع الصيانة</div><div class="toggle-desc">يمنع المستخدمين من الوصول</div></div>
+          <label class="toggle"><input type="checkbox" id="tog-maint" ${isMaint?'checked':''} onchange="saveMaint(this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="fi" style="margin-top:14px"><label>رسالة الصيانة</label><input class="inp" id="maint-msg" value="${esc(s.maintenance_message||'')}"></div>
+        <div class="fi"><label>حد المنشورات اليومي للمستخدم</label><input class="inp" type="number" id="post-lim" value="${esc(s.daily_post_limit||'5')}" min="1" max="20"></div>
+        <div class="fi"><label>حد البلاغات اليومي للمستخدم</label><input class="inp" type="number" id="rpt-lim" value="${esc(s.daily_report_limit||'10')}" min="1" max="50"></div>
+        <button class="btn bg fw" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-title">🔐 إدارة المشرفين</div>
+        <div style="font-size:13px;color:var(--t2);margin-bottom:12px">المشرفون الحاليون:</div>
+        ${ADMIN_EMAILS.map(e=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:var(--r2);margin-bottom:8px">
+            <span>👑</span><span style="font-size:13px;font-weight:700">${esc(e)}</span>
+          </div>`).join('')}
+        <div class="fi" style="margin-top:14px"><label>إضافة مشرف جديد (البريد)</label><input class="inp" id="new-admin" placeholder="admin@example.com" type="email"></div>
+        <button class="btn bt fw" onclick="addAdmin()">➕ إضافة مشرف</button>
+        <div style="font-size:11px;color:var(--t3);margin-top:8px">ملاحظة: أضف البريد في ملف admin.html في ADMIN_EMAILS</div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-title">🗑️ إدارة البيانات</div>
+        <div class="toggle-row">
+          <div><div class="toggle-label">حذف المنتجات المرفوضة</div><div class="toggle-desc">حذف كل المنتجات ذات حالة مرفوض</div></div>
+          <button class="btn br xs" onclick="cleanRejected()">حذف</button>
+        </div>
+        <div class="toggle-row">
+          <div><div class="toggle-label">حذف سجل المشاهدات القديمة</div><div class="toggle-desc">مشاهدات أقدم من 30 يوم</div></div>
+          <button class="btn br xs" onclick="cleanViews()">حذف</button>
+        </div>
+        <div class="toggle-row">
+          <div><div class="toggle-label">حذف الإشعارات القديمة</div><div class="toggle-desc">إشعارات مقروءة أقدم من 30 يوم</div></div>
+          <button class="btn br xs" onclick="cleanNotifs()">حذف</button>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-title">📊 معلومات المشروع</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px">
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Project URL</div>
+            <div style="font-size:12px;font-weight:600;word-break:break-all">${esc(SURL)}</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px">
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">المشرف الحالي</div>
+            <div style="font-size:12px;font-weight:600">${esc(ME?.email||'—')}</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px">
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">إصدار بزار</div>
+            <div style="font-size:12px;font-weight:600">v1.0 — 2026</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ════ ACTIONS ════ */
+window.approve = async (id, uid2, name) => {
+  loader('جاري القبول...');
+  await sb.from('products').update({status:'approved'}).eq('id',id);
+  if(uid2) await sb.from('notifications').insert({user_id:uid2,title:'✅ تم قبول منتجك',message:`"${name}" تم نشره في بزار`,type:'approved',product_id:id,is_read:false});
+  await logAction('approve', `قبول منتج: ${name}`);
+  unloader(); toast('تم القبول ✓','ok'); loadTab(curTab); loadBadges();
+};
+
+window.promptReject = (id, uid2, name) => {
+  $('#modals').innerHTML=`<div class="mod-bg" onclick="if(event.target===this)closeModal()">
+    <div class="mod">
+      <div class="mod-head"><h2>❌ رفض المنتج</h2><button class="xb" onclick="closeModal()">✕</button></div>
+      <div class="mod-body">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px">${esc(name)}</div>
+        <div class="fi"><label>سبب الرفض (سيُرسَل للمستخدم)</label>
+          <textarea class="inp" id="rej-reason" rows="3" placeholder="مثلاً: الصورة غير واضحة / الوصف ناقص..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn bgh" onclick="closeModal()">إلغاء</button>
+          <button class="btn br fw" onclick="doReject('${id}','${esc(uid2)}','${esc(name)}')">❌ تأكيد الرفض</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+};
+window.doReject = async (id,uid2,name) => {
+  var reason=document.getElementById('rej-reason')?.value?.trim();
+  if(!reason){toast('أدخل سبب الرفض','bad');return;}
+  closeModal(); loader('...');
+  await sb.from('products').update({status:'rejected',rejection_reason:reason}).eq('id',id);
+  if(uid2) await sb.from('notifications').insert({user_id:uid2,title:'❌ تم رفض منتجك',message:`"${name}" — ${reason}`,type:'rejected',product_id:id,is_read:false});
+  await logAction('reject', `رفض منتج: ${name} — ${reason}`);
+  unloader(); toast('تم الرفض','ok'); loadTab(curTab); loadBadges();
+};
+
+window.deleteProd = (id, name) => {
+  confirm2('🗑️','حذف المنتج',`هل تريد حذف "${name}" نهائياً؟ لا يمكن التراجع.`,'حذف نهائياً','br',async()=>{
+    loader('جاري الحذف...');
+    var ir=await sb.from('product_images').select('image_url').eq('product_id',id);
+    if(ir.data){for(var img of ir.data){var p=img.image_url.split('/product-images/')[1];if(p)await sb.storage.from('product-images').remove([decodeURIComponent(p)]);}}
+    await sb.from('product_images').delete().eq('product_id',id);
+    await sb.from('product_views').delete().eq('product_id',id);
+    await sb.from('products').delete().eq('id',id);
+    unloader(); toast('تم الحذف','ok'); loadTab(curTab);
+  });
+};
+
+window.verifyUser = (id, name) => {
+  confirm2('✅','توثيق الحساب',`هل تريد توثيق حساب "${name}"؟ سيتمكن من نشر المنتجات.`,'توثيق ✅','bt',async()=>{
+    loader('...');
+    await sb.from('profiles').update({is_verified:true}).eq('id',id);
+    await sb.from('notifications').insert({user_id:id,title:'✅ تم توثيق حسابك',message:'يمكنك الآن نشر منتجاتك في بزار!',type:'verified',is_read:false});
+    await logAction('verify', `توثيق: ${name}`);
+    unloader(); toast('تم التوثيق ✓','ok'); loadTab(curTab);
+  });
+};
+
+window.banUser = (id, name) => {
+  $('#modals').innerHTML=`<div class="mod-bg" onclick="if(event.target===this)closeModal()">
+    <div class="mod">
+      <div class="mod-head"><h2>🚫 حظر مستخدم</h2><button class="xb" onclick="closeModal()">✕</button></div>
+      <div class="mod-body">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px">${esc(name)}</div>
+        <div class="fi"><label>سبب الحظر</label>
+          <textarea class="inp" id="ban-reason" rows="3" placeholder="مثلاً: نشر محتوى مزيف / سلوك مسيء..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn bgh" onclick="closeModal()">إلغاء</button>
+          <button class="btn br fw" onclick="doBan('${id}','${esc(name)}')">🚫 تأكيد الحظر</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+};
+window.doBan = async (id, name) => {
+  var reason=document.getElementById('ban-reason')?.value?.trim();
+  if(!reason){toast('أدخل سبب الحظر','bad');return;}
+  closeModal(); loader('...');
+  await sb.from('profiles').update({account_status:'banned',ban_reason:reason}).eq('id',id);
+  await sb.from('notifications').insert({user_id:id,title:'🚫 تم تعليق حسابك',message:reason,type:'banned',is_read:false});
+  await logAction('ban', `حظر: ${name} — ${reason}`);
+  unloader(); toast('تم الحظر','ok'); loadTab(curTab);
+};
+
+window.unbanUser = (id, name) => {
+  confirm2('🔓','رفع الحظر',`هل تريد رفع الحظر عن "${name}"؟`,'رفع الحظر ✓','bt',async()=>{
+    loader('...');
+    await sb.from('profiles').update({account_status:'active',ban_reason:null}).eq('id',id);
+    unloader(); toast('تم رفع الحظر ✓','ok'); loadTab(curTab);
+  });
+};
+
+window.resolveReport = async id => {
+  loader('...');
+  await sb.from('reports').update({status:'resolved'}).eq('id',id);
+  unloader(); toast('تم تحديد البلاغ كمحلول ✓','ok'); loadTab(curTab); loadBadges();
+};
+window.deleteReportedProd = (rid, pid) => {
+  confirm2('🗑️','حذف المنتج المُبلَّغ عنه','هل تريد حذف هذا المنتج وإغلاق البلاغ؟','حذف نهائياً','br',async()=>{
+    loader('...');
+    await sb.from('reports').update({status:'resolved'}).eq('id',rid);
+    if(pid){
+      await sb.from('product_images').delete().eq('product_id',pid);
+      await sb.from('products').delete().eq('id',pid);
+    }
+    unloader(); toast('تم الحذف وإغلاق البلاغ ✓','ok'); loadTab(curTab); loadBadges();
+  });
+};
+
+window.userDetails = async id => {
+  loader('...');
+  var [pr, pd] = await Promise.all([
+    sb.from('profiles').select('*').eq('id',id).single(),
+    sb.from('products').select('id,name,status,view_count,created_at').eq('user_id',id).order('created_at',{ascending:false}).limit(10)
+  ]);
+  unloader();
+  if(pr.error) return;
+  var u=pr.data; var prods=pd.data||[];
+  var tv=prods.reduce((a,p)=>a+(p.view_count||0),0);
+  $('#modals').innerHTML=`<div class="mod-bg" onclick="if(event.target===this)closeModal()">
+    <div class="mod">
+      <div class="mod-head"><h2>👤 ${esc(u.full_name)}</h2><button class="xb" onclick="closeModal()">✕</button></div>
+      <div class="mod-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">البريد</div><div style="font-size:13px;font-weight:700">${esc(u.email)}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">البلد</div><div style="font-size:13px;font-weight:700">${esc(u.country||'—')}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">المنتجات</div><div style="font-size:13px;font-weight:700">${prods.length}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">إجمالي المشاهدات</div><div style="font-size:13px;font-weight:700">${tv}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">تاريخ التسجيل</div><div style="font-size:13px;font-weight:700">${fmtDate(u.created_at)}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:12px"><div style="font-size:10px;color:var(--t3)">الحالة</div><div style="font-size:13px;font-weight:700">${u.is_verified?'✅ موثّق':u.account_status==='banned'?'🚫 محظور':'⏳ لم يتحقق'}</div></div>
+        </div>
+        ${u.facebook_url?`<div style="margin-bottom:14px"><a href="${esc(u.facebook_url)}" target="_blank" class="btn bgh sm">📘 فيسبوك</a></div>`:''}
+        ${prods.length?`<div style="font-size:13px;font-weight:700;margin-bottom:10px">منتجاته الأخيرة:</div>
+        ${prods.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);font-size:12px">
+          <span>${esc(p.name)}</span>
+          <span class="sb2 ${p.status==='approved'?'sa':p.status==='rejected'?'sr':'sp'}">${p.status==='approved'?'✅':p.status==='rejected'?'❌':'⏳'}</span>
+        </div>`).join('')}`:''}
+      </div>
+    </div>
+  </div>`;
+};
+
+window.previewProd = async id => {
+  loader('...');
+  var pr=await sb.from('products').select('*').eq('id',id).single();
+  var ir=await sb.from('product_images').select('image_url').eq('product_id',id).order('display_order');
+  var sr=await sb.from('profiles').select('full_name,email').eq('id',pr.data?.user_id).maybeSingle();
+  unloader();
+  if(pr.error||!pr.data) return;
+  var p=pr.data; var imgs=(ir.data||[]).map(i=>i.image_url);
+  $('#modals').innerHTML=`<div class="mod-bg" onclick="if(event.target===this)closeModal()">
+    <div class="mod">
+      <div class="mod-head"><h2>👁 معاينة المنتج</h2><button class="xb" onclick="closeModal()">✕</button></div>
+      <div class="mod-body">
+        ${imgs.length?`<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px">${imgs.map(u=>`<img src="${esc(u)}" style="width:120px;height:120px;object-fit:cover;border-radius:var(--r2);flex-shrink:0;cursor:zoom-in" onclick="window.open('${esc(u)}','_blank')">`).join('')}</div>`:''}
+        <div style="font-size:18px;font-weight:900;margin-bottom:8px">${esc(p.name)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:10px"><div style="font-size:10px;color:var(--t3)">الفئة</div><div style="font-weight:700">${esc(p.category)}</div></div>
+          <div style="background:var(--bg3);border-radius:var(--r2);padding:10px"><div style="font-size:10px;color:var(--t3)">الصيغة</div><div style="font-weight:700">${esc(p.format)}</div></div>
+          ${p.price_da?`<div style="background:var(--bg3);border-radius:var(--r2);padding:10px"><div style="font-size:10px;color:var(--t3)">السعر DA</div><div style="font-weight:700">${p.price_da} DA</div></div>`:''}
+          ${p.price_usd?`<div style="background:var(--bg3);border-radius:var(--r2);padding:10px"><div style="font-size:10px;color:var(--t3)">السعر $</div><div style="font-weight:700">$${p.price_usd}</div></div>`:''}
+        </div>
+        ${p.description?`<p style="font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:14px">${esc(p.description)}</p>`:''}
+        <div style="font-size:12px;color:var(--t3)">البائع: ${esc(sr.data?.full_name||'مجهول')} · ${esc(sr.data?.email||'')}</div>
+        ${p.status==='pending'?`<div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn bt fw" onclick="closeModal();approve('${p.id}','${esc(p.user_id)}','${esc(p.name)}')">✅ قبول</button>
+          <button class="btn br fw" onclick="closeModal();promptReject('${p.id}','${esc(p.user_id)}','${esc(p.name)}')">❌ رفض</button>
+        </div>`:''}
+      </div>
+    </div>
+  </div>`;
+};
+
+window.viewConv = async id => {
+  loader('...');
+  var r=await sb.from('messages').select('*').eq('conversation_id',id).order('created_at').limit(50);
+  unloader();
+  var msgs=r.data||[];
+  $('#modals').innerHTML=`<div class="mod-bg" onclick="if(event.target===this)closeModal()">
+    <div class="mod">
+      <div class="mod-head"><h2>💬 المحادثة</h2><button class="xb" onclick="closeModal()">✕</button></div>
+      <div class="mod-body" style="max-height:60vh;overflow-y:auto">
+        ${msgs.length?msgs.map(m=>`
+          <div style="margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:var(--r2)">
+            <div style="font-size:11px;color:var(--t3);margin-bottom:5px">👤 ${esc(m.sender_name||'مجهول')} · ${timeAgo(m.created_at)}</div>
+            <div style="font-size:13px">${esc(m.content)}</div>
+          </div>`).join('')
+        :'<div class="empty" style="padding:20px"><div class="es">لا توجد رسائل</div></div>'}
+      </div>
+    </div>
+  </div>`;
+};
+
+/* ════ SETTINGS ACTIONS ════ */
+window.saveMaint = async on => {
+  await sb.from('site_settings').upsert({key:'maintenance_mode',value:on?'true':'false'},{onConflict:'key'});
+  toast(on?'وضع الصيانة مفعّل ⚠️':'الموقع متاح للجميع ✓','ok');
+};
+window.saveSettings = async () => {
+  loader('...');
+  var msg=$('#maint-msg')?.value, pl=$('#post-lim')?.value, rl=$('#rpt-lim')?.value;
+  var ups=[];
+  if(msg) ups.push({key:'maintenance_message',value:msg});
+  if(pl)  ups.push({key:'daily_post_limit',value:pl});
+  if(rl)  ups.push({key:'daily_report_limit',value:rl});
+  for(var u of ups) await sb.from('site_settings').upsert(u,{onConflict:'key'});
+  unloader(); toast('تم حفظ الإعدادات ✓','ok');
+};
+window.addAdmin = () => {
+  var em=$('#new-admin')?.value?.trim();
+  if(!em) return;
+  toast('أضف "'+em+'" إلى ADMIN_EMAILS في ملف admin.html','warn');
+};
+window.cleanRejected = () => {
+  confirm2('🗑️','حذف المنتجات المرفوضة','هل أنت متأكد؟ سيتم حذف كل المنتجات ذات حالة مرفوض.','حذف الكل','br',async()=>{
+    loader('...');
+    var r=await sb.from('products').select('id').eq('status','rejected');
+    if(r.data) for(var p of r.data){ await sb.from('product_images').delete().eq('product_id',p.id); await sb.from('products').delete().eq('id',p.id); }
+    unloader(); toast('تم الحذف ✓','ok');
+  });
+};
+window.cleanViews = () => {
+  confirm2('🗑️','حذف المشاهدات القديمة','حذف مشاهدات أقدم من 30 يوم؟','حذف','br',async()=>{
+    loader('...');
+    var d=new Date(); d.setDate(d.getDate()-30);
+    await sb.from('product_views').delete().lt('viewed_at',d.toISOString());
+    unloader(); toast('تم الحذف ✓','ok');
+  });
+};
+window.cleanNotifs = () => {
+  confirm2('🗑️','حذف الإشعارات القديمة','حذف إشعارات مقروءة أقدم من 30 يوم؟','حذف','br',async()=>{
+    loader('...');
+    var d=new Date(); d.setDate(d.getDate()-30);
+    await sb.from('notifications').delete().eq('is_read',true).lt('created_at',d.toISOString());
+    unloader(); toast('تم الحذف ✓','ok');
+  });
+};
+
+/* ════ SECURITY LOG ════ */
+async function logAction(type, details){
+  try{
+    await sb.from('security_logs').insert({
+      user_id:ME.id, user_email:ME.email,
+      event_type:type, details
+    });
+  }catch(e){}
+}
+
+/* ════ REALTIME ════ */
+function setupRT(){
+  sb.channel('admin_rt')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'products',filter:'status=eq.pending'},()=>{
+      loadBadges();
+      if(curTab==='pending'||curTab==='overview') loadTab(curTab);
+      toast('منتج جديد قيد المراجعة 📦','warn');
+    })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'reports',filter:'status=eq.open'},()=>{
+      loadBadges();
+      if(curTab==='reports') loadTab(curTab);
+      toast('بلاغ جديد 🚩','warn');
+    })
+    .subscribe();
+}
+
+/* ════ START ════ */
+init();
+
+})();
+</script>
+</body>
+</html>
